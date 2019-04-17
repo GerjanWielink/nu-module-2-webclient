@@ -1,8 +1,10 @@
 import React, { Component } from 'react';
 import moment from  "moment";
 import {baseUrl} from "../../constants";
-import { Grid, Card, List, Confirm } from "semantic-ui-react";
+import { Grid, Card, List, Confirm, Header } from "semantic-ui-react";
 import { withRouter } from "react-router";
+import RemotesList from "./RemotesList";
+import FilesList from "./FilesList";
 
 class Dashboard extends Component {
     intervals =[];
@@ -11,9 +13,10 @@ class Dashboard extends Component {
         super(props);
 
         this.state = {
-            remotes: [],
             selectedRemote: null,
-            showConfirmModal: null,
+            activeConfirmationModal: null,
+            remotes: [],
+            myFiles: []
         }
     }
 
@@ -23,6 +26,7 @@ class Dashboard extends Component {
 
         this.inspectLocalhost();
         this.fetchRemotes();
+        this.fetchFiles();
     }
 
     componentWillUnmount() {
@@ -31,70 +35,60 @@ class Dashboard extends Component {
 
 
     render () {
-        const { remotes, selectedRemote, showConfirmModal } = this.state;
+        const { remotes, selectedRemote, activeConfirmationModal, myFiles } = this.state;
 
         return (
-            <Grid columns={2} divided>
-                <Grid.Column>
-                    <Card>
-                        <Card.Content>
-                            <Card.Header style={{ marginBottom: '1em'}}>
-                                Remotes
-                            </Card.Header>
-                            <Card.Content>
-                                <List divided relaxed>
-                                    {remotes.map(remote => (
-                                        <List.Item key={remote.hostname}>
-                                            <List.Icon name='server' size='large' verticalAlign='middle' onClick={() => this.refreshFiles(remote)} />
-                                            <List.Content>
-                                                <List.Header as='a' onClick={() => this.showDetails(remote)}>{`${remote.hostname}:${remote.port}`}</List.Header>
-                                                <List.Description>Last seen: {moment.unix(remote.lastseen).format("HH:mm")}</List.Description>
-                                            </List.Content>
-                                        </List.Item>
-                                    ))}
-                                </List>
-                            </Card.Content>
-                        </Card.Content>
-                    </Card>
-                </Grid.Column>
+            <React.Fragment>
+                <Header as={'h1'} textAlign={'center'}>Remotes</Header>
+                <RemotesList
+                    remotes={remotes}
+                    handleFetchFiles={this.refreshFiles}
+                    handleShowDetails={this.showDetails}
+                />
 
-                <Grid.Column>
-                    {selectedRemote != null && (
-                        <Card fluid>
-                            <Card.Content>
-                                <Card.Header>
-                                    {selectedRemote.hostname}
-                                </Card.Header>
-                                <Card.Content>
-                                    {selectedRemote.files.map(file => (
-                                        <React.Fragment key={file.filename}>
-                                            <List.Item>
-                                                <List.Icon name='file' size='large' verticalAlign='middle' />
-                                                <List.Content>
-                                                    <List.Header as='a' onClick={() => this.promptDownload(file.filename)}>{file.filename}</List.Header>
-                                                    <List.Description>{file.size} bytes</List.Description>
-                                                </List.Content>
-                                            </List.Item>
+                {selectedRemote &&
+                    <React.Fragment>
+                        <Header as={'h2'} textAlign={'center'}>
+                            {selectedRemote.hostname}:{selectedRemote.port}
+                        </Header>
+                        <Grid columns={2}>
+                            <Grid.Column>
+                                <Header as={'h3'} textAlign={'center'}>
+                                    Downloads
+                                </Header>
 
-                                            {/* Confirmation modal*/}
-                                            <Confirm
-                                                open={showConfirmModal === file.filename}
-                                                onCancel={this.cancelPrompt}
-                                                onConfirm={() => this.startDownload(selectedRemote, file.filename)}
-                                            />
-                                        </React.Fragment>
-                                    ))}
-                                </Card.Content>
-                            </Card.Content>
-                        </Card>
-                    )}
-                </Grid.Column>
-            </Grid>
+                                <FilesList
+                                    files={selectedRemote.files}
+                                    type='download'
+                                    onClickFile={this.promptDownload}
+                                    onConfirmModal={(filename) => this.startDownload(selectedRemote, filename)}
+                                    onModalClose={this.cancelPrompt}
+                                    activeConfirmationModal={activeConfirmationModal}
+                                />
+                            </Grid.Column>
+                            <Grid.Column>
+                                <Header as={'h3'} textAlign={'center'}>
+                                    Uploads
+                                </Header>
+
+                                <FilesList
+                                    files={myFiles}
+                                    type='upload'
+                                    onClickFile={this.promptDownload}
+                                    onConfirmModal={(filename) => this.startUpload(selectedRemote, filename)}
+                                    onModalClose={this.cancelPrompt}
+                                    activeConfirmationModal={activeConfirmationModal}
+                                />
+                            </Grid.Column>
+                        </Grid>
+                    </React.Fragment>
+                }
+            </React.Fragment>
         );
     }
 
     fetchRemotes = () => {
-        fetch(baseUrl + "/remotes")
+        return fetch(baseUrl + "/remotes")
             .then(result => result.json())
             .then((remotes) => {
                 this.setState({
@@ -104,21 +98,36 @@ class Dashboard extends Component {
             .catch(err => console.log(err));
     };
 
+    fetchFiles = () => {
+        fetch(baseUrl + "/files")
+            .then(result => result.json())
+            .then((myFiles) => {
+                this.setState({
+                  myFiles
+                })
+            })
+    };
 
-    promptDownload = (filename) => {
+
+    promptDownload = (modalId) => {
         this.setState({
-            showConfirmModal: filename,
+            activeConfirmationModal: modalId,
         })
     };
 
     cancelPrompt = () => {
         this.setState({
-            showConfirmModal: null,
+            activeConfirmationModal: null,
         })
     };
 
     startDownload = (remote, filename) => {
         fetch(`${baseUrl}/request/${remote.hostname}/${remote.port}/D${filename}`);
+        this.props.history.push("/downloads");
+    };
+
+    startUpload = (remote, filename) => {
+        fetch(`${baseUrl}/request/${remote.hostname}/${remote.port}/U${filename}`);
         this.props.history.push("/downloads");
     };
 

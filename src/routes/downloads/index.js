@@ -2,6 +2,7 @@ import React, {Component} from 'react';
 import {baseUrl} from "../../constants";
 import {Checkbox, Header, Container, Segment, Icon, Message} from "semantic-ui-react";
 import moment from 'moment';
+import DownloadsList from "./DownloadsList";
 
 export default class Downloads extends Component {
     intervals = [];
@@ -57,32 +58,7 @@ export default class Downloads extends Component {
                 </Container>
 
                 <Container>
-                    <Segment.Group>
-                        {downloads
-                            .filter(download => (
-                                download.requestType !== "INSPECT" | showInspections
-                            ))
-                            .filter(download => (
-                                showCompleted | !download.finReceived
-                            ))
-                            .map(download => (
-                          <Segment key={download.id}>
-                              <Icon
-                                  name={download.sendingSide ? "arrow right" : "arrow left"}
-                              />
-                              <Icon
-                                  name={this.getIcon(download.requestType)}
-                                  style={{ color: download.finReceived ? "green" : "inherit"}}
-                                  loading={!download.finReceived}
-                              />
-                              <Message>
-                                  <Message.Header>{download.requestPayload} @ {download.destinationHost}:{download.destinationPort}</Message.Header>
-                                  {`${Math.floor(download.bytesRead / 1000)} kB received`} <br/>
-                                  {this.formattedDownloadSpeed(download)}
-                              </Message>
-                          </Segment>
-                        ))}
-                    </Segment.Group>
+                    <DownloadsList downloads={downloads} showInspections={showInspections} showCompleted={showCompleted} onPause={this.pauseDownload} />
                 </Container>
             </React.Fragment>
         )
@@ -94,38 +70,14 @@ export default class Downloads extends Component {
         }))
     };
 
-    getIcon = (requestType) => {
-        switch (requestType) {
-            case "DOWNLOAD":
-                return "download";
-
-            case "UPLOAD":
-                return "upload";
-
-            case "INSPECT":
-                return "info";
-
-            default:
-                return "question";
-        }
-    };
-
-    formattedDownloadSpeed = ({ transactionStartTime, transactionEndTime, bytesRead}) => {
-        const startTime = moment(transactionStartTime);
-        const endTime = transactionEndTime !== -1 ? moment(transactionEndTime) : moment();
-
-        const duration = moment.duration(endTime.diff(startTime));
-        const elapsedSeconds = duration.asSeconds();
-
-        const mbps = ((bytesRead) / 1000000) / elapsedSeconds;
-
-        return `${mbps.toFixed(2)} MB/s, total time: ${elapsedSeconds.toFixed(0)} seconds`;
-    };
-
     toggleCompleted = () => {
         this.setState(state => ({
             showCompleted: !state.showCompleted,
         }))
+    };
+
+    pauseDownload = (download) => {
+        fetch(`${baseUrl}/pause/${download.id}`);
     };
 
     fetchDownloads = () => {

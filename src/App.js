@@ -1,5 +1,6 @@
 import React from 'react';
 import 'semantic-ui-css/semantic.min.css';
+import './index.css';
 
 import { BrowserRouter } from 'react-router-dom';
 import AppContainer from "./components/AppContainer";
